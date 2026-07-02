@@ -1,0 +1,833 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Die Reise eines Datenpakets – Netzwerke</title>
+<style>
+  /* ===========================================================
+     DESIGN: "Netzwerk-Monitor"
+     Dunkles Display, leuchtende Leitungen, ein pulsierendes
+     Paket, das von Station zu Station reist.
+     =========================================================== */
+  :root{
+    --bg:#0a0e14;
+    --panel:#121823;
+    --panel-2:#18202d;
+    --line:#243140;
+    --ink:#e9f0f7;
+    --ink-dim:#8b98a8;
+    --cyan:#36c9e0;
+    --cyan-soft:#0d2d34;
+    --paket:#ffd24a;
+    --green:#4fd887;
+    --red:#ff5f6d;
+    --dim-line:#2b3a4d;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font-family:"Segoe UI",system-ui,-apple-system,sans-serif;line-height:1.55;}
+  .mono{font-family:ui-monospace,"SF Mono",Consolas,monospace;}
+
+  header{border-bottom:1px solid var(--line);padding:26px 24px 22px;
+    background:radial-gradient(820px 200px at 14% -40%,rgba(54,201,224,.12),transparent 62%),var(--panel);}
+  .eyebrow{font-family:ui-monospace,monospace;font-size:11px;letter-spacing:.3em;
+    text-transform:uppercase;color:var(--cyan);margin-bottom:9px;}
+  h1{margin:0;font-size:clamp(25px,4vw,38px);font-weight:800;letter-spacing:-.5px;}
+  .sub{color:var(--ink-dim);margin-top:8px;max-width:62ch;font-size:14.5px;}
+  .sub b{color:var(--ink);}
+
+  main{max-width:1120px;margin:0 auto;padding:22px;}
+  .grid{display:grid;grid-template-columns:1fr 330px;gap:18px;}
+  @media(max-width:880px){.grid{grid-template-columns:1fr;}}
+
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:20px;}
+  .card h2{margin:0 0 3px;font-size:17px;}
+  .card .hint{color:var(--ink-dim);font-size:13px;margin:0 0 14px;}
+  .card h3{font-size:12px;text-transform:uppercase;letter-spacing:.13em;color:var(--ink-dim);margin:20px 0 10px;font-weight:700;}
+
+  canvas#net{width:100%;display:block;border-radius:12px;
+    background:radial-gradient(700px 400px at 50% 30%,#0f1722,#0a0e14);
+    border:1px solid var(--line);cursor:default;touch-action:none;}
+
+  .legend{display:flex;gap:16px;flex-wrap:wrap;margin-top:14px;font-size:12.5px;}
+  .legend span{display:inline-flex;align-items:center;gap:7px;color:var(--ink-dim);}
+  .sw{width:13px;height:13px;border-radius:50%;display:inline-block;}
+  .sw.line{border-radius:2px;width:18px;height:4px;}
+
+  .btn{width:100%;border:none;border-radius:11px;cursor:pointer;padding:13px;font-size:14.5px;font-weight:700;
+    background:var(--cyan);color:#04222a;transition:.14s;}
+  .btn:hover{filter:brightness(1.08);}
+  .btn:active{transform:translateY(1px);}
+  .btn:disabled{opacity:.5;cursor:not-allowed;}
+  .btn.ghost{background:var(--panel-2);color:var(--ink);box-shadow:inset 0 0 0 1px var(--line);margin-top:9px;}
+  .btn.show{background:var(--panel-2);color:var(--cyan);box-shadow:inset 0 0 0 1px var(--cyan);margin-top:9px;}
+  .btn.show:hover{background:var(--cyan-soft);}
+
+  /* BFS-Erklärbox */
+  .bfsbox{margin-top:14px;padding:14px;border-radius:12px;border:1px solid var(--cyan);
+    background:var(--cyan-soft);}
+  .bfsbox-head{font-size:11px;text-transform:uppercase;letter-spacing:.12em;color:var(--cyan);
+    font-weight:700;margin-bottom:8px;}
+  .bfsbox-step{font-size:13.5px;color:var(--ink);line-height:1.5;min-height:40px;}
+  .bfsbox-step b{color:var(--paket);}
+  .bfsbox-queue{margin-top:10px;font-size:12px;font-family:ui-monospace,monospace;
+    border-top:1px solid rgba(54,201,224,.25);padding-top:8px;}
+  .bfsbox-queue .ql{color:var(--ink-dim);}
+  .bfsbox-queue .qv{color:var(--cyan);font-weight:700;}
+  .bfsbox-listhead{font-size:11px;text-transform:uppercase;letter-spacing:.12em;color:var(--ink-dim);
+    font-weight:700;margin:14px 0 6px;border-top:1px solid rgba(54,201,224,.25);padding-top:10px;}
+  ol.bfslist{margin:0;padding:0 0 0 26px;max-height:200px;overflow:auto;font-size:12.5px;}
+  ol.bfslist li{padding:4px 0;color:var(--ink-dim);border-bottom:1px solid rgba(255,255,255,.04);line-height:1.45;}
+  ol.bfslist li b{color:var(--ink);}
+  ol.bfslist li.find{color:var(--green);}
+  ol.bfslist li.find b{color:var(--green);}
+  ol.bfslist li.path{color:var(--paket);}
+  ol.bfslist li.path b{color:var(--paket);}
+
+  .btnrow2{display:flex;gap:9px;margin-top:9px;}
+  .btnrow2>*{flex:1;margin-top:0;}
+  .tempo-row{display:flex;align-items:center;gap:10px;margin-top:10px;}
+  .tempo-label{font-size:12px;color:var(--ink-dim);flex:0 0 auto;}
+  .seg{display:flex;flex:1;gap:4px;background:var(--panel-2);border:1px solid var(--line);border-radius:9px;padding:3px;}
+  .seg button{flex:1;border:none;background:transparent;color:var(--ink-dim);padding:7px 4px;border-radius:6px;
+    cursor:pointer;font-size:12px;font-weight:600;transition:.12s;}
+  .seg button.on{background:var(--cyan);color:#04222a;}
+  .btn:focus-visible,select:focus-visible,.seg button:focus-visible{outline:2px solid var(--paket);outline-offset:2px;}
+  @media (prefers-reduced-motion: reduce){ .status.fail{animation:none;} }
+  .tipp{font-size:12px;color:var(--ink-dim);margin-top:12px;line-height:1.5;
+    border-top:1px solid var(--line);padding-top:10px;}
+  .tipp b{color:var(--ink);}
+
+  /* Statusfeld: leuchtet je nach Zustellbarkeit */
+  .status{display:flex;align-items:center;gap:12px;margin-top:14px;padding:14px;
+    border-radius:12px;border:1px solid var(--line);background:var(--panel-2);transition:.3s;}
+  .status-icon{font-size:22px;width:34px;height:34px;border-radius:50%;display:flex;
+    align-items:center;justify-content:center;flex:0 0 auto;font-weight:800;
+    background:var(--bg);border:1px solid var(--line);color:var(--ink-dim);transition:.3s;}
+  .status-txt{font-size:14px;font-weight:600;color:var(--ink-dim);}
+  .status.ok{border-color:var(--green);background:rgba(79,216,135,.1);
+    box-shadow:0 0 24px rgba(79,216,135,.25);}
+  .status.ok .status-icon{background:var(--green);color:#06231a;border-color:var(--green);}
+  .status.ok .status-txt{color:var(--green);}
+  .status.fail{border-color:var(--red);background:rgba(255,95,109,.12);
+    box-shadow:0 0 28px rgba(255,95,109,.4);animation:alarm 1s ease-in-out infinite;}
+  .status.fail .status-icon{background:var(--red);color:#2a0608;border-color:var(--red);}
+  .status.fail .status-txt{color:var(--red);}
+  @keyframes alarm{
+    0%,100%{box-shadow:0 0 22px rgba(255,95,109,.3);}
+    50%{box-shadow:0 0 36px rgba(255,95,109,.6);}
+  }
+
+  .pick{display:flex;gap:10px;margin-top:6px;}
+  .pick>div{flex:1;}
+  select{width:100%;background:var(--panel-2);border:1px solid var(--line);color:var(--ink);
+    padding:10px;border-radius:9px;font-size:14px;font-family:inherit;}
+  select:focus{outline:2px solid var(--cyan);outline-offset:1px;}
+  label.fld{display:block;font-size:12px;color:var(--ink-dim);margin-bottom:5px;}
+
+  .log{margin-top:6px;background:var(--panel-2);border:1px solid var(--line);border-radius:11px;
+    padding:12px;font-family:ui-monospace,monospace;font-size:12.5px;min-height:120px;max-height:200px;overflow:auto;}
+  .log .ln{padding:3px 0;color:var(--ink-dim);border-bottom:1px solid rgba(255,255,255,.04);}
+  .log .ln b{color:var(--cyan);}
+  .log .ln.hop b{color:var(--paket);}
+  .log .ln.ok b{color:var(--green);}
+  .log .ln.err b{color:var(--red);}
+
+  .stat-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px;}
+  .stat{background:var(--panel-2);border:1px solid var(--line);border-radius:11px;padding:12px;text-align:center;}
+  .stat .v{font-size:22px;font-weight:800;font-family:ui-monospace,monospace;color:var(--cyan);}
+  .stat .k{font-size:11px;color:var(--ink-dim);margin-top:2px;}
+
+  .steps{counter-reset:s;margin:0;padding:0;list-style:none;}
+  .steps li{counter-increment:s;position:relative;padding:9px 0 9px 38px;font-size:13.5px;color:var(--ink-dim);border-top:1px solid var(--line);}
+  .steps li:first-child{border-top:none;}
+  .steps li::before{content:counter(s);position:absolute;left:0;top:8px;width:24px;height:24px;
+    background:var(--cyan-soft);color:var(--cyan);border:1px solid var(--cyan);border-radius:7px;
+    display:flex;align-items:center;justify-content:center;font-weight:800;font-size:12px;font-family:ui-monospace,monospace;}
+  .steps li b{color:var(--ink);}
+  .explain{border:1px dashed var(--line);border-radius:12px;padding:14px 16px;margin-top:14px;
+    font-size:13.5px;color:var(--ink-dim);background:var(--panel);}
+  .explain b{color:var(--cyan);}
+  footer{color:var(--ink-dim);font-size:12px;text-align:center;padding:28px 20px 40px;border-top:1px solid var(--line);margin-top:24px;}
+</style>
+</head>
+<body>
+<header>
+  <div class="eyebrow">Informatik-Projekt · Netzwerke</div>
+  <h1>Die Reise eines Datenpakets</h1>
+  <p class="sub">Das Internet ist kein direkter Draht von dir zum Ziel. Deine Daten reisen als <b>Paket</b> von Station zu Station – über Router und Knotenpunkte –, bis sie ankommen. Schick ein Paket los und schau zu. Klicke eine <b>Leitung</b> an, um sie zu kappen (wie ein Kabelbruch) – das Paket sucht sich dann selbst einen Umweg.</p>
+</header>
+
+<main>
+  <div class="grid">
+    <!-- LINKS: Netzkarte -->
+    <div class="card">
+      <h2>Das Netzwerk</h2>
+      <p class="hint">Stationen sind Knoten, Leitungen verbinden sie. Klicke eine <b>Leitung</b>, um sie zu kappen – oder eine <b>Station</b>, um sie abzuschalten.</p>
+      <canvas id="net" width="760" height="580"></canvas>
+      <div class="legend">
+        <span><i class="sw" style="background:#ffd24a"></i>Start</span>
+        <span><i class="sw" style="background:#4fd887"></i>Ziel</span>
+        <span><i class="sw" style="background:#16222f;border:2px solid var(--cyan)"></i>Station (Router)</span>
+        <span><i class="sw" style="background:#ff3b47"></i>abgeschaltet (überlastet)</span>
+        <span><i class="sw line" style="background:var(--red)"></i>gekappte Leitung</span>
+        <span><i class="sw line" style="background:var(--paket)"></i>gefundener Weg</span>
+      </div>
+      <div class="legend" id="bfsLegend" style="display:none">
+        <span><i class="sw" style="background:#ff8c42"></i>gerade untersucht</span>
+        <span><i class="sw" style="background:#6a8cff"></i>schon entdeckt (wartet)</span>
+        <span><i class="sw" style="background:#2f6f4f"></i>fertig abgehakt</span>
+        <span><i class="sw line" style="background:var(--paket)"></i>gefundener Weg</span>
+      </div>
+    </div>
+
+    <!-- RECHTS: Steuerung -->
+    <div class="card">
+      <h2>Paket senden</h2>
+      <p class="hint">Wähle Start und Ziel, dann „Senden".</p>
+      <div class="pick">
+        <div>
+          <label class="fld">Von</label>
+          <select id="von"></select>
+        </div>
+        <div>
+          <label class="fld">Nach</label>
+          <select id="nach"></select>
+        </div>
+      </div>
+      <button class="btn" id="sendBtn" style="margin-top:14px">Paket senden (schnell)</button>
+      <button class="btn show" id="bfsBtn">🔍 Breitensuche Schritt für Schritt</button>
+      <div class="tempo-row">
+        <span class="tempo-label">Tempo</span>
+        <div class="seg" id="tempoSeg">
+          <button data-t="0.5">Langsam</button>
+          <button class="on" data-t="1">Normal</button>
+          <button data-t="2">Schnell</button>
+        </div>
+      </div>
+      <div class="btnrow2">
+        <button class="btn ghost" id="resetBtn">Leitungen reparieren</button>
+        <button class="btn ghost" id="reviveBtn">Stationen einschalten</button>
+      </div>
+
+      <div class="status" id="status">
+        <div class="status-icon" id="statusIcon">○</div>
+        <div class="status-txt" id="statusTxt">Bereit zum Senden</div>
+      </div>
+
+      <!-- Breitensuche-Protokoll: aktueller Schritt oben, Liste zum Nachlesen darunter -->
+      <div class="bfsbox" id="bfsbox" style="display:none">
+        <div class="bfsbox-head">Breitensuche – das macht sie gerade:</div>
+        <div class="bfsbox-step" id="bfsStep">—</div>
+        <div class="bfsbox-queue">
+          <span class="ql">Warteschlange:</span>
+          <span class="qv" id="bfsQueue">—</span>
+        </div>
+        <div class="bfsbox-listhead">Protokoll zum Nachlesen</div>
+        <ol class="bfslist" id="bfsList"></ol>
+      </div>
+
+      <h3>Live-Protokoll (Paketreise)</h3>
+      <div class="log" id="log"><div class="ln">Bereit. Sende ein Paket …</div></div>
+
+      <div class="stat-row">
+        <div class="stat"><div class="v" id="statHops">–</div><div class="k">Stationen (Hops)</div></div>
+        <div class="stat"><div class="v" id="statCut">0</div><div class="k">Ausfälle</div></div>
+      </div>
+      <p class="tipp">Tipp: Klicke auf eine <b>Leitung</b>, um sie zu kappen – oder auf eine <b>Station</b>, um sie wegen Überlastung abzuschalten (sie wird rot). Das Routing weicht dann automatisch aus.</p>
+    </div>
+  </div>
+
+  <!-- Erklärung -->
+  <div class="card" style="margin-top:18px">
+    <h2>Wie findet das Paket seinen Weg? In drei Punkten</h2>
+    <ol class="steps">
+      <li><b>Kein direkter Draht.</b> Deine Daten werden in ein Paket verpackt. Es gibt keine direkte Leitung zum Ziel – nur viele Stationen, die untereinander verbunden sind.</li>
+      <li><b>Hop für Hop weiterreichen.</b> Jede Station schaut: „Über welchen Nachbarn komme ich am schnellsten zum Ziel?" – und reicht das Paket dorthin weiter. Dieses Weiterreichen nennt man einen <b>Hop</b>.</li>
+      <li><b>Umweg bei Ausfall oder Stau.</b> Fällt eine Leitung aus oder ist eine Station <b>überlastet</b> (zu hohes Datenaufkommen), wird sie umgangen: Das Netz sucht automatisch einen anderen Weg. Genau diese Robustheit macht das Internet so stabil.</li>
+    </ol>
+    <div class="explain">
+      <b>Fachbegriffe:</b> Das Berechnen des Weges heißt <b>Routing</b>. Weil sich der Weg an die aktuelle Lage anpasst (Ausfälle, Überlastung), spricht man von <b>dynamischem Routing</b>. Eine überlastete Station zu meiden ist <b>Stauvermeidung</b> – wie eine Navi-App, die einen Stau umfährt. Der kürzeste Weg (wenigste Hops) wird hier mit der <b>Breitensuche</b> gefunden. Dass es <b>mehrere</b> Wege gibt, ist Absicht: So übersteht das Internet sogar Ausfälle einzelner Stationen.
+    </div>
+  </div>
+</main>
+
+<footer>Die Reise eines Datenpakets · Routing in Netzwerken · läuft offline im Browser, keine Installation nötig.</footer>
+
+<script>
+/* ============================================================
+   DAS NETZ:  Stationen (Knoten) + Leitungen (Kanten)
+   ============================================================ */
+const STATIONEN=[
+  {name:"Dein PC",      x:70,  y:300},
+  {name:"Router Stadt", x:180, y:170},
+  {name:"Frankfurt",    x:200, y:430},
+  {name:"Berlin",       x:330, y:90},
+  {name:"Amsterdam",    x:360, y:300},
+  {name:"London",       x:330, y:470},
+  {name:"Paris",        x:480, y:150},
+  {name:"Madrid",       x:470, y:400},
+  {name:"Rom",          x:600, y:90},
+  {name:"Wien",         x:560, y:280},
+  {name:"Prag",         x:470, y:520},
+  {name:"Oslo",         x:610, y:470},
+  {name:"Server (Ziel)",x:680, y:200},
+  {name:"Backup-Server",x:700, y:360},
+];
+// Leitungen als Indexpaare. Der PC hat ZWEI Anschlüsse (zu 1 und 2),
+// damit man "beide Wege vom Ausgangsort kappen" zeigen kann.
+const ALLE_LEITUNGEN=[
+  [0,1],[0,2],
+  [1,2],[1,3],[2,4],[3,4],[2,5],[3,6],[4,5],[5,7],[6,7],[6,8],
+  [4,9],[9,10],[10,3],[5,11],[11,4],[7,12],[8,12],[9,12],[10,13],[12,13],[8,13]
+];
+const N=STATIONEN.length;
+
+// Welche Leitungen sind aktiv? (Set aus normalisierten "klein-gross" Schlüsseln)
+function leitungKey(a,b){return a<b?a+"-"+b:b+"-"+a;}
+let aktiv=new Set(ALLE_LEITUNGEN.map(([a,b])=>leitungKey(a,b)));
+let ausgeschaltet=new Set();   // Indizes von Stationen, die überlastet/abgeschaltet sind
+function istAktiv(a,b){return aktiv.has(leitungKey(a,b));}
+
+/* ============================================================
+   ROUTING: kürzester Weg per Breitensuche
+   ============================================================ */
+function nachbarn(k){
+  const res=[];
+  for(const [a,b] of ALLE_LEITUNGEN){
+    if(!istAktiv(a,b))continue;
+    const o = (a===k) ? b : (b===k) ? a : -1;
+    if(o>=0 && !ausgeschaltet.has(o)) res.push(o); // abgeschaltete Stationen meiden
+  }
+  return res;
+}
+function findeWeg(start,ziel){
+  if(ausgeschaltet.has(start)||ausgeschaltet.has(ziel))return null;
+  const prev=new Array(N).fill(-1), seen=new Array(N).fill(false);
+  const q=[start]; seen[start]=true;
+  while(q.length){
+    const k=q.shift();
+    if(k===ziel)break;
+    for(const nb of nachbarn(k)){
+      if(!seen[nb]){seen[nb]=true;prev[nb]=k;q.push(nb);}
+    }
+  }
+  if(!seen[ziel])return null;
+  const weg=[]; let c=ziel;
+  while(c!==-1){weg.unshift(c);c=prev[c];}
+  return weg;
+}
+
+/* ============================================================
+   ZEICHNEN
+   ============================================================ */
+const cv=document.getElementById("net"), ctx=cv.getContext("2d");
+const CW=760, CH=580;
+let paketPos=null;     // {x,y} während der Reise
+let aktWeg=null;       // aktueller Weg (Indexliste) zum Hervorheben
+let bfsZustand=new Array(N).fill(null);  // pro Knoten: "queue"/"aktiv"/"fertig"
+let bfsWelle=new Array(N).fill(-1);      // Wellennummer (Entfernung vom Start)
+let bfsLaeuft=false;
+let trail=[];                            // verblassende Spur des Pakets
+let hoverKnoten=-1, hoverLeitung=null;   // was gerade unter der Maus liegt
+let tempo=1;                             // Animations-Geschwindigkeit (0.5/1/2)
+let NOW=performance.now();               // aktuelle Zeit für Animationseffekte
+const REDUCED=window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
+function busy(){return bfsLaeuft||sende;}
+
+function setup(){
+  const ratio=window.devicePixelRatio||1;
+  const w=cv.clientWidth, h=w*CH/CW;
+  cv.width=w*ratio; cv.height=h*ratio; cv.style.height=h+"px";
+  ctx.setTransform(ratio*w/CW,0,0,ratio*w/CW,0,0);
+}
+function wegHatKante(a,b){
+  if(!aktWeg)return false;
+  for(let i=0;i<aktWeg.length-1;i++){
+    if((aktWeg[i]===a&&aktWeg[i+1]===b)||(aktWeg[i]===b&&aktWeg[i+1]===a))return true;
+  }
+  return false;
+}
+function draw(){
+  const t=NOW;
+  ctx.clearRect(0,0,CW,CH);
+
+  // 1) Leitungen
+  for(const [a,b] of ALLE_LEITUNGEN){
+    const A=STATIONEN[a], B=STATIONEN[b];
+    const on=istAktiv(a,b);
+    const onPath=wegHatKante(a,b);
+    const hovered = hoverLeitung && hoverLeitung[0]===a && hoverLeitung[1]===b;
+    ctx.beginPath(); ctx.moveTo(A.x,A.y); ctx.lineTo(B.x,B.y);
+    if(!on){ ctx.strokeStyle= hovered?"#ff8b96":"#ff5f6d"; ctx.lineWidth=2; ctx.setLineDash([6,6]); }
+    else if(onPath){ ctx.strokeStyle="#ffd24a"; ctx.lineWidth=4; ctx.setLineDash([]); }
+    else { ctx.strokeStyle= hovered?"#44607f":"#2b3a4d"; ctx.lineWidth= hovered?3.5:2.5; ctx.setLineDash([]); }
+    ctx.stroke(); ctx.setLineDash([]);
+  }
+
+  // 1b) Fluss-Richtung: bewegte helle Striche laufen den Weg entlang ZUM ZIEL
+  if(aktWeg && aktWeg.length>1 && !REDUCED){
+    ctx.save();
+    ctx.strokeStyle="rgba(255,255,255,.5)"; ctx.lineWidth=2;
+    ctx.setLineDash([3,11]); ctx.lineDashOffset=-((t/26)%14);
+    ctx.beginPath();
+    ctx.moveTo(STATIONEN[aktWeg[0]].x, STATIONEN[aktWeg[0]].y);
+    for(let i=1;i<aktWeg.length;i++) ctx.lineTo(STATIONEN[aktWeg[i]].x, STATIONEN[aktWeg[i]].y);
+    ctx.stroke(); ctx.restore();
+  }
+
+  // 2) Verblassende Spur hinter dem Paket
+  trail=trail.filter(p=>t-p.t<650);
+  for(const p of trail){
+    const alter=1-(t-p.t)/650;
+    ctx.beginPath(); ctx.arc(p.x,p.y,2+7*alter,0,7);
+    ctx.fillStyle=`rgba(255,210,74,${0.28*alter})`; ctx.fill();
+  }
+
+  // 3) Stationen
+  const startSel = +document.getElementById("von").value;
+  const zielSel  = +document.getElementById("nach").value;
+  for(let i=0;i<N;i++){
+    const S=STATIONEN[i];
+    const istZiel = i===zielSel;
+    const istStart= i===startSel;
+    const istAus = ausgeschaltet.has(i);
+
+    // Puls-Ring um die Station, die die Breitensuche GERADE untersucht
+    if(bfsZustand[i]==="aktiv" && !REDUCED){
+      const ph=(t/700)%1;
+      ctx.beginPath(); ctx.arc(S.x,S.y,18+ph*16,0,7);
+      ctx.strokeStyle=`rgba(255,140,66,${(1-ph)*0.7})`; ctx.lineWidth=2.5; ctx.stroke();
+    }
+
+    // Füllfarbe je nach Zustand (Prioritäten: aus > BFS > Ziel > Start > normal)
+    let fill;
+    if(istAus)                       fill="#ff3b47";
+    else if(bfsZustand[i]==="aktiv") fill="#ff8c42";
+    else if(bfsZustand[i]==="queue") fill="#6a8cff";
+    else if(bfsZustand[i]==="fertig")fill="#2f6f4f";
+    else if(istZiel)                 fill="#4fd887";
+    else if(istStart)                fill="#ffd24a";
+    else                             fill="#16222f";
+
+    // Leuchten: abgeschaltet atmet rot, Start/Ziel leuchten sanft
+    if(istAus){
+      ctx.shadowColor="rgba(255,59,71,.7)";
+      ctx.shadowBlur= REDUCED?16 : 12+6*Math.sin(t/300);
+    } else if(istStart||istZiel){
+      ctx.shadowColor= istZiel?"rgba(79,216,135,.55)":"rgba(255,210,74,.55)";
+      ctx.shadowBlur=12;
+    }
+    ctx.beginPath(); ctx.arc(S.x,S.y,16,0,7);
+    ctx.fillStyle=fill; ctx.fill(); ctx.shadowBlur=0;
+    ctx.lineWidth= i===hoverKnoten?3.5:2.5;
+    ctx.strokeStyle= istAus ? "#ff8c92"
+                   : bfsZustand[i]==="aktiv" ? "#ffd24a"
+                   : i===hoverKnoten ? "#7fe3f2" : "#36c9e0";
+    ctx.stroke();
+
+    // Inhalt des Kreises: ✕ (abgeschaltet) oder Wellennummer (Breitensuche)
+    if(istAus){
+      ctx.fillStyle="#fff"; ctx.font="700 15px ui-monospace,monospace";
+      ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.fillText("✕", S.x, S.y);
+    } else if(bfsWelle[i]>=0){
+      ctx.fillStyle="#fff"; ctx.font="700 12px ui-monospace,monospace";
+      ctx.textAlign="center"; ctx.textBaseline="middle";
+      ctx.fillText(bfsWelle[i], S.x, S.y);
+    }
+
+    // Name
+    ctx.fillStyle = istAus ? "#ff8c92" : "#cdd9e5"; ctx.font="600 12px sans-serif";
+    ctx.textAlign="center"; ctx.textBaseline="top";
+    ctx.fillText(S.name, S.x, S.y+20);
+
+    // START/ZIEL-Schildchen über dem Knoten
+    if(istStart||istZiel){
+      const label = istStart&&istZiel ? "START=ZIEL" : istStart ? "START" : "ZIEL";
+      const gelb = istStart && !istZiel;
+      ctx.font="700 9px ui-monospace,monospace";
+      const w=ctx.measureText(label).width+10;
+      const bx=S.x-w/2, by=S.y-34;
+      roundedRect(bx,by,w,14,7);
+      ctx.fillStyle= gelb ? "rgba(255,210,74,.16)" : "rgba(79,216,135,.16)"; ctx.fill();
+      ctx.strokeStyle= gelb ? "#ffd24a" : "#4fd887"; ctx.lineWidth=1; ctx.stroke();
+      ctx.fillStyle= gelb ? "#ffd24a" : "#4fd887";
+      ctx.textAlign="center"; ctx.textBaseline="middle";
+      ctx.fillText(label, S.x, by+7);
+    }
+  }
+
+  // 4) Paket
+  if(paketPos){
+    ctx.beginPath(); ctx.arc(paketPos.x,paketPos.y,10,0,7);
+    ctx.fillStyle="#ffd24a"; ctx.shadowColor="rgba(255,210,74,.8)"; ctx.shadowBlur=18;
+    ctx.fill(); ctx.shadowBlur=0;
+    ctx.fillStyle="#04222a"; ctx.font="700 11px ui-monospace,monospace";
+    ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.fillText("📦",paketPos.x,paketPos.y);
+  }
+}
+function roundedRect(x,y,w,h,r){
+  ctx.beginPath();
+  ctx.moveTo(x+r,y);
+  ctx.arcTo(x+w,y,x+w,y+h,r);
+  ctx.arcTo(x+w,y+h,x,y+h,r);
+  ctx.arcTo(x,y+h,x,y,r);
+  ctx.arcTo(x,y,x+w,y,r);
+  ctx.closePath();
+}
+
+/* ============================================================
+   KLICK: auf Station -> ausschalten/überlastet; auf Leitung -> kappen
+   ============================================================ */
+cv.addEventListener("click",e=>{
+  if(busy()) return;   // während einer Animation nicht ins Netz eingreifen
+  const r=cv.getBoundingClientRect();
+  const mx=(e.clientX-r.left)*CW/r.width, my=(e.clientY-r.top)*CH/r.height;
+  const startSel=+document.getElementById("von").value;
+  const zielSel =+document.getElementById("nach").value;
+
+  // 1) Zuerst prüfen: wurde eine Station getroffen?
+  let knoten=-1, kDist=20;
+  for(let i=0;i<N;i++){
+    const d=Math.hypot(mx-STATIONEN[i].x, my-STATIONEN[i].y);
+    if(d<kDist){kDist=d;knoten=i;}
+  }
+  if(knoten>=0){
+    // Start (PC) darf nicht ausgeschaltet werden – von dort kommt das Paket ja
+    if(knoten===startSel){
+      flashHinweis(`${STATIONEN[knoten].name} ist dein eigener Anschluss – den kannst du nicht abschalten.`);
+      return;
+    }
+    if(ausgeschaltet.has(knoten)) ausgeschaltet.delete(knoten);
+    else ausgeschaltet.add(knoten);
+    nachAenderung();
+    return;
+  }
+
+  // 2) Sonst: nächste Leitung zum Klick finden
+  let beste=null, bestDist=12;
+  for(const [a,b] of ALLE_LEITUNGEN){
+    const d=abstandZurLinie(mx,my,STATIONEN[a],STATIONEN[b]);
+    if(d<bestDist){bestDist=d;beste=[a,b];}
+  }
+  if(beste){
+    const k=leitungKey(beste[0],beste[1]);
+    if(aktiv.has(k))aktiv.delete(k); else aktiv.add(k);
+    nachAenderung();
+  }
+});
+// Hover: zeigen, was anklickbar ist (Zeiger-Cursor + Hervorhebung)
+cv.addEventListener("mousemove",e=>{
+  if(busy()){ hoverKnoten=-1; hoverLeitung=null; cv.style.cursor="default"; return; }
+  const r=cv.getBoundingClientRect();
+  const mx=(e.clientX-r.left)*CW/r.width, my=(e.clientY-r.top)*CH/r.height;
+  hoverKnoten=-1; hoverLeitung=null;
+  let kd=20;
+  for(let i=0;i<N;i++){
+    const d=Math.hypot(mx-STATIONEN[i].x, my-STATIONEN[i].y);
+    if(d<kd){kd=d;hoverKnoten=i;}
+  }
+  if(hoverKnoten<0){
+    let bd=12;
+    for(const [a,b] of ALLE_LEITUNGEN){
+      const d=abstandZurLinie(mx,my,STATIONEN[a],STATIONEN[b]);
+      if(d<bd){bd=d;hoverLeitung=[a,b];}
+    }
+  }
+  cv.style.cursor=(hoverKnoten>=0||hoverLeitung)?"pointer":"default";
+});
+cv.addEventListener("mouseleave",()=>{hoverKnoten=-1;hoverLeitung=null;});
+
+// gemeinsame Aufräumarbeit nach jeder Netz-Änderung
+function nachAenderung(){
+  aktualisiereCutCount();
+  aktWeg=null; paketPos=null; trail=[]; bfsReset();
+  document.getElementById("bfsbox").style.display="none";
+  document.getElementById("bfsLegend").style.display="none";
+  document.getElementById("statHops").textContent="–";
+  setStatus("","Bereit zum Senden");
+  draw();
+}
+function flashHinweis(text){ setStatus("", text); }
+function abstandZurLinie(px,py,A,B){
+  const dx=B.x-A.x, dy=B.y-A.y;
+  const len2=dx*dx+dy*dy;
+  let t=((px-A.x)*dx+(py-A.y)*dy)/len2;
+  t=Math.max(0,Math.min(1,t));
+  const cx=A.x+t*dx, cy=A.y+t*dy;
+  return Math.hypot(px-cx,py-cy);
+}
+function aktualisiereCutCount(){
+  const gekappt = ALLE_LEITUNGEN.length - aktiv.size;
+  document.getElementById("statCut").textContent = gekappt + ausgeschaltet.size;
+}
+
+/* ============================================================
+   PAKET SENDEN (animierte Reise)
+   ============================================================ */
+const logEl=document.getElementById("log");
+function setStatus(zustand, text){
+  const el=document.getElementById("status");
+  const icon=document.getElementById("statusIcon");
+  const txt=document.getElementById("statusTxt");
+  el.classList.remove("ok","fail");
+  if(zustand==="ok"){ el.classList.add("ok"); icon.textContent="✓"; }
+  else if(zustand==="fail"){ el.classList.add("fail"); icon.textContent="✕"; }
+  else { icon.textContent="○"; }
+  txt.textContent=text;
+}
+function log(text, cls=""){
+  const d=document.createElement("div");
+  d.className="ln "+cls; d.innerHTML=text;
+  logEl.appendChild(d); logEl.scrollTop=logEl.scrollHeight;
+}
+function clearLog(){logEl.innerHTML="";}
+
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+let sende=false;
+
+// Sperrt/entsperrt alle Bedienelemente während einer Animation
+function setBusyUI(b){
+  ["sendBtn","bfsBtn","resetBtn","reviveBtn","von","nach"].forEach(id=>{
+    document.getElementById(id).disabled=b;
+  });
+}
+
+async function sendePaket(){
+  if(busy())return;
+  const start=+document.getElementById("von").value;
+  const ziel=+document.getElementById("nach").value;
+  clearLog(); bfsReset(); trail=[];
+  document.getElementById("bfsbox").style.display="none";
+  document.getElementById("bfsLegend").style.display="none";
+  if(start===ziel){ log("Start und Ziel sind gleich. 🙂"); return; }
+
+  const weg=findeWeg(start,ziel);
+  if(!weg){
+    const grund = ausgeschaltet.has(ziel)
+      ? `${STATIONEN[ziel].name} ist abgeschaltet (überlastet).`
+      : `${STATIONEN[start].name} ist vom Ziel abgeschnitten.`;
+    log(`<b>Kein Weg!</b> ${grund}`,"err");
+    log("Repariere Leitungen oder schalte Stationen ein und versuch es erneut.","err");
+    document.getElementById("statHops").textContent="✗";
+    setStatus("fail", "Paket NICHT zustellbar – kein Weg zum Ziel!");
+    aktWeg=null; paketPos=null; draw();
+    return;
+  }
+
+  sende=true; setBusyUI(true);
+  setStatus("", "Paket unterwegs …");
+  aktWeg=weg; draw();
+  document.getElementById("statHops").textContent=weg.length-1;
+  log(`Paket gepackt bei <b>${STATIONEN[start].name}</b>. Ziel: <b>${STATIONEN[ziel].name}</b>.`);
+  log(`Bester Weg gefunden: ${weg.length-1} Stationen.`);
+
+  // Paket entlang des Weges animieren (Dauer skaliert mit dem Tempo-Regler)
+  for(let i=0;i<weg.length-1;i++){
+    const A=STATIONEN[weg[i]], B=STATIONEN[weg[i+1]];
+    log(`Hop ${i+1}: <b>${STATIONEN[weg[i]].name}</b> → ${STATIONEN[weg[i+1]].name}`,"hop");
+    const dauer=520/tempo, t0=performance.now();
+    await new Promise(res=>{
+      function frame(now){
+        const t=Math.min((now-t0)/dauer,1);
+        paketPos={x:A.x+(B.x-A.x)*t, y:A.y+(B.y-A.y)*t};
+        trail.push({x:paketPos.x, y:paketPos.y, t:now});
+        if(t<1)requestAnimationFrame(frame); else res();
+      }
+      requestAnimationFrame(frame);
+    });
+  }
+  log(`✓ Angekommen bei <b>${STATIONEN[ziel].name}</b>!`,"ok");
+  setStatus("ok", `Zugestellt in ${weg.length-1} Hops!`);
+  paketPos={x:STATIONEN[ziel].x,y:STATIONEN[ziel].y}; draw();
+  sende=false; setBusyUI(false);
+}
+document.getElementById("sendBtn").onclick=sendePaket;
+
+/* ============================================================
+   BREITENSUCHE SCHRITT FÜR SCHRITT (sichtbar machen, wie der Weg entsteht)
+   ============================================================ */
+function bfsReset(){
+  bfsZustand=new Array(N).fill(null);
+  bfsWelle=new Array(N).fill(-1);
+}
+function setBfsText(html){ document.getElementById("bfsStep").innerHTML=html; }
+function setBfsQueue(q){
+  document.getElementById("bfsQueue").textContent =
+    q.length ? q.map(i=>STATIONEN[i].name).join(", ") : "(leer)";
+}
+function bfsListReset(){ document.getElementById("bfsList").innerHTML=""; }
+function bfsListItem(html, cls=""){
+  const li=document.createElement("li");
+  if(cls)li.className=cls;
+  li.innerHTML=html;
+  const list=document.getElementById("bfsList");
+  list.appendChild(li);
+  list.scrollTop=list.scrollHeight;  // immer zum neuesten Eintrag scrollen
+}
+
+async function bfsAnimiert(){
+  if(busy()) return;
+  const start=+document.getElementById("von").value;
+  const ziel=+document.getElementById("nach").value;
+  if(start===ziel){ setStatus("","Start und Ziel sind gleich."); return; }
+  // Konsistent zu findeWeg: abgeschaltete Start-/Zielstation sofort abfangen
+  if(ausgeschaltet.has(start)||ausgeschaltet.has(ziel)){
+    setStatus("fail", ausgeschaltet.has(ziel)
+      ? "Das Ziel ist abgeschaltet (überlastet) – erst wieder einschalten."
+      : "Der Startpunkt ist abgeschaltet – erst wieder einschalten.");
+    return;
+  }
+
+  bfsLaeuft=true; setBusyUI(true);
+  document.getElementById("bfsbox").style.display="block";
+  document.getElementById("bfsLegend").style.display="flex";
+  clearLog(); bfsListReset();
+  aktWeg=null; paketPos=null; trail=[]; bfsReset();
+  setStatus("", "Breitensuche läuft …");
+
+  const langsam=ms=>new Promise(r=>setTimeout(r,ms/tempo));
+  const prev=new Array(N).fill(-1), seen=new Array(N).fill(false);
+  const queue=[];
+
+  // Startknoten in die Warteschlange
+  seen[start]=true; bfsWelle[start]=0; bfsZustand[start]="queue"; queue.push(start);
+  setBfsText(`Wir starten bei <b>${STATIONEN[start].name}</b> und legen ihn in die Warteschlange. Welle <b>0</b>.`);
+  bfsListItem(`Start bei <b>${STATIONEN[start].name}</b> (Welle 0).`);
+  setBfsQueue(queue); draw();
+  await langsam(1100);
+
+  let gefunden=false;
+  while(queue.length){
+    const k=queue.shift();
+    bfsZustand[k]="aktiv";
+    setBfsText(`Wir nehmen <b>${STATIONEN[k].name}</b> aus der Warteschlange und schauen uns seine Nachbarn an. (Welle ${bfsWelle[k]})`);
+    bfsListItem(`Untersuche <b>${STATIONEN[k].name}</b> (Welle ${bfsWelle[k]}).`);
+    setBfsQueue(queue); draw();
+    await langsam(950);
+
+    if(k===ziel){
+      setBfsText(`<b>${STATIONEN[ziel].name}</b> ist das Ziel – gefunden! Jetzt gehen wir den Weg rückwärts zurück.`);
+      bfsListItem(`✓ Ziel <b>${STATIONEN[ziel].name}</b> erreicht!`,"find");
+      gefunden=true; bfsZustand[k]="fertig"; draw();
+      await langsam(1000);
+      break;
+    }
+
+    // Nachbarn der Reihe nach entdecken
+    const nbs=nachbarn(k).sort((a,b)=>a-b);
+    for(const x of nbs){
+      if(!seen[x]){
+        seen[x]=true; prev[x]=k; bfsWelle[x]=bfsWelle[k]+1; bfsZustand[x]="queue"; queue.push(x);
+        setBfsText(`Über <b>${STATIONEN[k].name}</b> neu entdeckt: <b>${STATIONEN[x].name}</b>. Kommt in die Warteschlange (Welle ${bfsWelle[x]}).`);
+        bfsListItem(`&nbsp;&nbsp;↳ entdeckt: <b>${STATIONEN[x].name}</b> über ${STATIONEN[k].name} (Welle ${bfsWelle[x]}).`);
+        setBfsQueue(queue); draw();
+        await langsam(620);
+      }
+    }
+    bfsZustand[k]="fertig"; draw();
+    await langsam(400);
+  }
+
+  if(!gefunden){
+    setBfsText(`Die Warteschlange ist leer und das Ziel wurde nie erreicht. <b style="color:#ff5f6d">Es gibt keinen Weg!</b>`);
+    bfsListItem(`Warteschlange leer – <b>kein Weg zum Ziel!</b>`,"path");
+    setStatus("fail","Paket NICHT zustellbar – kein Weg zum Ziel!");
+    document.getElementById("statHops").textContent="✗";
+    bfsLaeuft=false; setBusyUI(false);
+    return;
+  }
+
+  // Weg rückwärts rekonstruieren und Schritt für Schritt aufbauen
+  const weg=[]; let c=ziel;
+  while(c!==-1){weg.unshift(c);c=prev[c];}
+  bfsListItem(`Weg rückwärts zusammensetzen:`,"path");
+  for(let i=weg.length-1;i>=0;i--){
+    aktWeg=weg.slice(i);
+    const ueber = i>0 ? ` – erreicht über <b>${STATIONEN[weg[i-1]].name}</b>` : "";
+    setBfsText(`Rückweg: <b>${STATIONEN[weg[i]].name}</b>${ueber}.`);
+    bfsListItem(`&nbsp;&nbsp;${STATIONEN[weg[i]].name}${i>0?" ← "+STATIONEN[weg[i-1]].name:""}`,"path");
+    draw();
+    await langsam(650);
+  }
+  aktWeg=weg; draw();
+
+  setBfsText(`Fertig! Der kürzeste Weg hat <b>${weg.length-1}</b> Stationen: ${weg.map(i=>STATIONEN[i].name).join(" → ")}.`);
+  setStatus("ok", `Weg gefunden: ${weg.length-1} Hops`);
+  document.getElementById("statHops").textContent=weg.length-1;
+  log("Breitensuche fertig. Jetzt würde das Paket diesen Weg entlangreisen.","ok");
+  bfsLaeuft=false; setBusyUI(false);
+}
+document.getElementById("bfsBtn").onclick=bfsAnimiert;
+
+document.getElementById("resetBtn").onclick=()=>{
+  if(busy())return;
+  aktiv=new Set(ALLE_LEITUNGEN.map(([a,b])=>leitungKey(a,b)));
+  aktualisiereCutCount(); aktWeg=null; paketPos=null; trail=[]; bfsReset();
+  document.getElementById("bfsbox").style.display="none";
+  document.getElementById("bfsLegend").style.display="none";
+  document.getElementById("statHops").textContent="–";
+  setStatus("", "Alle Leitungen repariert.");
+  clearLog(); log("Alle Leitungen repariert.");
+  draw();
+};
+document.getElementById("reviveBtn").onclick=()=>{
+  if(busy())return;
+  ausgeschaltet.clear();
+  aktualisiereCutCount(); aktWeg=null; paketPos=null; trail=[]; bfsReset();
+  document.getElementById("bfsbox").style.display="none";
+  document.getElementById("bfsLegend").style.display="none";
+  document.getElementById("statHops").textContent="–";
+  setStatus("", "Alle Stationen wieder eingeschaltet.");
+  clearLog(); log("Alle überlasteten Stationen wieder online.");
+  draw();
+};
+
+// Tempo-Regler: skaliert alle Animations-Verzögerungen
+document.querySelectorAll("#tempoSeg button").forEach(b=>{
+  b.onclick=()=>{
+    document.querySelectorAll("#tempoSeg button").forEach(x=>x.classList.remove("on"));
+    b.classList.add("on");
+    tempo=+b.dataset.t;
+  };
+});
+
+/* ============================================================
+   Dropdowns füllen
+   ============================================================ */
+const selVon=document.getElementById("von"), selNach=document.getElementById("nach");
+STATIONEN.forEach((s,i)=>{
+  selVon.add(new Option(s.name,i));
+  selNach.add(new Option(s.name,i));
+});
+selVon.value=0; selNach.value=N-2;
+function auswahlGeaendert(){
+  if(busy())return;
+  aktWeg=null; paketPos=null; trail=[]; bfsReset();
+  document.getElementById("bfsbox").style.display="none";
+  document.getElementById("bfsLegend").style.display="none";
+  document.getElementById("statHops").textContent="–";
+  setStatus("","Bereit zum Senden");
+  draw();
+}
+selVon.onchange=auswahlGeaendert;
+selNach.onchange=auswahlGeaendert;
+
+/* ============================================================
+   START
+   ============================================================ */
+window.addEventListener("resize",()=>{setup();draw();});
+setup(); aktualisiereCutCount(); draw();
+
+// Dauerhafte Render-Schleife: macht Puls, Fluss-Striche und
+// Paket-Spur flüssig, ohne dass einzelne Stellen draw() rufen müssen.
+function renderLoop(t){
+  NOW=t;
+  draw();
+  requestAnimationFrame(renderLoop);
+}
+requestAnimationFrame(renderLoop);
+</script>
+</body>
+</html>
